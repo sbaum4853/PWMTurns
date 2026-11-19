@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Joyride Day — Robot Car Turning Lab</title>
+<style>
+  :root{
+    --asphalt:#1b1d22; --asphalt2:#25282f; --line:#3a3e48;
+    --cream:#f5efe4; --dim:#a9a49b; --yellow:#ffc93c; --orange:#ff7a3d;
+    --teal:#3ddbd9; --green:#5be37d; --red:#ff5a5f; --purple:#b48cff;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#0f1013;color:var(--cream);font-family:var(--sans);overflow:hidden}
+  #viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  #stage{width:1280px;height:720px;position:relative;transform-origin:center center;background:var(--asphalt);
+    border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .slide{position:absolute;inset:0;padding:56px 72px 80px;display:none;flex-direction:column}
+  .slide.active{display:flex;animation:in .35s ease}
+  @keyframes in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  /* road stripe along bottom */
+  .slide::after{content:"";position:absolute;left:0;right:0;bottom:34px;height:6px;
+    background:repeating-linear-gradient(90deg,var(--yellow) 0 46px,transparent 46px 86px);opacity:.25}
+  h1{font-size:92px;line-height:.95;font-weight:900;letter-spacing:-2px}
+  h2{font-size:54px;font-weight:900;letter-spacing:-1px;margin-bottom:22px}
+  h2 .tag{font-size:18px;letter-spacing:2px;text-transform:uppercase;color:var(--orange);display:block;margin-bottom:6px;font-weight:800}
+  p.big{font-size:30px;line-height:1.3}
+  .y{color:var(--yellow)} .o{color:var(--orange)} .t{color:var(--teal)} .g{color:var(--green)} .r{color:var(--red)} .d{color:var(--dim)}
+  .row{display:flex;gap:28px;flex:1;min-height:0}
+  .col{flex:1;display:flex;flex-direction:column;gap:18px;min-width:0}
+  .card{background:var(--asphalt2);border:2px solid var(--line);border-radius:16px;padding:20px 24px}
+  pre.code{font-family:var(--mono);font-size:21px;line-height:1.45;background:#121317;border:2px solid var(--line);
+    border-radius:14px;padding:18px 22px;color:#e8e3d8;white-space:pre;overflow:hidden}
+  pre.code.sm{font-size:17px}
+  .kw{color:var(--purple)} .fn{color:var(--teal)} .hi{color:var(--green);font-weight:700} .lo{color:var(--red);font-weight:700}
+  .num{color:var(--yellow)} .cm{color:#7f7a72;font-style:italic}
+  .try{background:rgba(255,201,60,.1);border:2px dashed var(--yellow);border-radius:16px;padding:18px 22px}
+  .try > b{color:var(--yellow);font-size:20px;letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:8px}
+  .try li{font-size:24px;line-height:1.35;margin-left:26px;margin-bottom:6px}
+  /* nav */
+  #nav{position:absolute;bottom:0;left:0;right:0;height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:5;font-size:14px;color:var(--dim)}
+  #nav button{background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer;padding:2px 10px}
+  #nav button:hover{color:var(--yellow)}
+  #dots{display:flex;gap:6px}
+  #dots span{width:9px;height:9px;border-radius:50%;background:var(--line);cursor:pointer}
+  #dots span.on{background:var(--yellow)}
+  #notes{position:absolute;left:40px;right:40px;bottom:46px;background:rgba(10,10,12,.95);border:2px solid var(--orange);
+    border-radius:12px;padding:16px 20px;font-size:18px;line-height:1.4;display:none;z-index:6}
+  #notes b{color:var(--orange)}
+
+  /* title */
+  .title-wrap{flex:1;display:flex;flex-direction:column;justify-content:center}
+  .kicker{font-size:22px;letter-spacing:4px;text-transform:uppercase;color:var(--orange);font-weight:800;margin-bottom:18px}
+  .road{position:absolute;left:0;right:0;bottom:90px;height:90px;background:#2a2d34;border-top:3px solid #444;border-bottom:3px solid #444}
+  .road::before{content:"";position:absolute;left:0;right:0;top:42px;height:6px;background:repeating-linear-gradient(90deg,var(--yellow) 0 50px,transparent 50px 100px)}
+  .zoom{position:absolute;top:14px;left:-160px;animation:drive 6s linear infinite}
+  @keyframes drive{0%{left:-160px;transform:none}45%{left:560px;transform:none}55%{left:600px;transform:translateY(-6px) rotate(-6deg)}60%{transform:none}100%{left:1400px}}
+
+  /* pin cards */
+  .pinbox{display:flex;gap:28px}
+  .pinbox .card{flex:1}
+  .pinbox h3{font-size:34px;margin-bottom:8px}
+  .pinbox .what{font-size:26px;margin-bottom:14px}
+  .chip{display:inline-block;font-family:var(--mono);font-size:22px;padding:6px 12px;border-radius:8px;background:#121317;border:2px solid var(--line);margin:4px 6px 4px 0}
+
+  table.truth{border-collapse:separate;border-spacing:0 10px;width:100%;font-size:28px}
+  table.truth td,table.truth th{padding:12px 18px;text-align:center}
+  table.truth th{font-size:18px;letter-spacing:2px;text-transform:uppercase;color:var(--dim)}
+  table.truth tr.r td{background:var(--asphalt2)}
+  table.truth tr.r td:first-child{border-radius:12px 0 0 12px} table.truth tr.r td:last-child{border-radius:0 12px 12px 0;text-align:left}
+  table.truth td.mono{font-family:var(--mono);font-weight:700}
+
+  /* speed slider */
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:14px;border-radius:8px;background:#121317;border:2px solid var(--line);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:30px;height:30px;border-radius:50%;background:var(--yellow);border:3px solid var(--asphalt);cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:var(--yellow);border:3px solid var(--asphalt);cursor:pointer}
+  .bignum{font-family:var(--mono);font-size:110px;font-weight:800;color:var(--yellow);line-height:1}
+  .zone{font-size:30px;font-weight:800;margin-top:6px}
+  .track{position:relative;height:60px;background:#2a2d34;border-radius:10px;overflow:hidden;margin-top:14px}
+  .track .mini{position:absolute;top:12px;left:0;font-size:34px;line-height:1}
+
+  /* three turns */
+  .turns{display:flex;gap:24px;flex:1}
+  .turns .card{flex:1;text-align:center;display:flex;flex-direction:column;align-items:center}
+  .turns h3{font-size:36px;margin:6px 0 4px}
+  .turns p{font-size:22px;color:var(--dim);line-height:1.3}
+
+  /* sim */
+  .simgrid{display:grid;grid-template-columns:560px 1fr;gap:22px;height:505px}
+  .simgrid .col{min-height:0;overflow:hidden}
+  #simCanvas{width:560px;height:430px;background:#16181c;border:2px solid var(--line);border-radius:14px;display:block}
+  .wheelctl{display:flex;gap:14px}
+  .wheelctl .card{flex:1;padding:12px 14px}
+  .wheelctl h4{font-size:16px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
+  .seg{display:flex;gap:6px;margin-bottom:10px}
+  .seg button,.btn{font-family:var(--sans);font-size:16px;font-weight:800;padding:7px 10px;border-radius:8px;border:2px solid var(--line);background:#121317;color:var(--cream);cursor:pointer}
+  .seg button{flex:1}
+  .seg button.on[data-v="1"]{background:var(--green);color:#111;border-color:var(--green)}
+  .seg button.on[data-v="0"]{background:#777;color:#111;border-color:#777}
+  .seg button.on[data-v="-1"]{background:var(--red);color:#111;border-color:var(--red)}
+  .lbl{font-family:var(--mono);font-size:16px;display:flex;justify-content:space-between;margin-bottom:4px}
+  .btns{display:flex;gap:8px;flex-wrap:wrap}
+  .btn:hover{border-color:var(--yellow)}
+  .btn.go{background:var(--yellow);color:#111;border-color:var(--yellow)}
+  .btn.pre{font-size:14px;padding:5px 9px;color:var(--teal)}
+  #simCode{font-size:13px;line-height:1.35;padding:10px 14px;flex:1;min-height:0;overflow:auto}
+  #steps{font-size:14px;color:var(--dim);font-family:var(--mono)}
+
+  /* challenges */
+  .chal{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;flex:1}
+  .ch{background:var(--asphalt2);border:2px solid var(--line);border-radius:16px;padding:16px;cursor:pointer;position:relative;transition:transform .15s,border-color .15s;display:flex;flex-direction:column}
+  .ch:hover{transform:translateY(-3px);border-color:var(--yellow)}
+  .ch .ico{font-size:44px;line-height:1;margin-bottom:8px}
+  .ch h4{font-size:22px;line-height:1.1;margin-bottom:6px}
+  .ch p{font-size:16px;color:var(--dim);line-height:1.3;flex:1}
+  .ch .stars{color:var(--yellow);font-size:16px;margin-top:6px}
+  .ch.done{border-color:var(--green);background:rgba(91,227,125,.12)}
+  .ch.done::after{content:"✓";position:absolute;top:8px;right:12px;font-size:30px;color:var(--green);font-weight:900}
+  #confetti{position:absolute;inset:0;pointer-events:none;z-index:4}
+
+  /* experiment bubbles */
+  .bubbles{display:flex;flex-wrap:wrap;gap:16px;align-content:flex-start}
+  .bub{font-size:26px;padding:14px 22px;border-radius:40px;background:var(--asphalt2);border:2px solid var(--line)}
+  .bub:nth-child(3n+1){border-color:var(--yellow)} .bub:nth-child(3n+2){border-color:var(--teal)} .bub:nth-child(3n){border-color:var(--orange)}
+
+  /* menu */
+  .menu{display:grid;grid-template-columns:1fr 1fr;gap:18px;flex:1}
+  .opt{background:var(--asphalt2);border:2px solid var(--line);border-radius:18px;padding:20px 24px;display:flex;gap:18px;align-items:flex-start}
+  .opt .letter{font-size:52px;font-weight:900;line-height:1;color:var(--yellow);min-width:46px}
+  .opt h4{font-size:27px;margin-bottom:6px;line-height:1.15}
+  .opt p{font-size:19px;color:var(--dim);line-height:1.35}
+  .opt.nope{border-color:var(--red);background:repeating-linear-gradient(135deg,rgba(255,90,95,.08) 0 18px,transparent 18px 36px);cursor:pointer}
+  .opt.nope .letter{color:var(--red)}
+  .opt.nope s{color:var(--red)}
+  .shake{animation:shake .45s}
+  @keyframes shake{20%{transform:translateX(-10px) rotate(-1deg)}40%{transform:translateX(10px) rotate(1deg)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+  ul.rules{list-style:none;font-size:34px;line-height:1.35}
+  ul.rules li{margin-bottom:22px;display:flex;gap:20px;align-items:flex-start}
+  ul.rules .n{font-size:56px;line-height:.9}
+</style>
+</head>
+<body>
+<div id="viewport"><div id="stage">
+
+<!-- 1 TITLE -->
+<section class="slide" data-notes="Last class before break. Goal for today: robots everywhere, lots of joy. Keep the talking short — about 10 minutes of slides, then let them loose. Slides 5–8 can be shown once and left up as a reference.">
+  <div class="title-wrap">
+    <div class="kicker">Robotics 1 · Robot Car · Day of Chaos (the good kind)</div>
+    <h1>JOYRIDE<br><span class="y">DAY</span> 🏁</h1>
+    <p class="big d" style="margin-top:22px">Your car works. Now let's teach it to <span class="o">turn</span>, <span class="t">wander</span>, and <span class="y">show off</span>.</p>
+  </div>
+  <div class="road"><div class="zoom" style="font-size:60px"><span style="display:inline-block;transform:scaleX(-1)">🚗💨</span></div></div>
+</section>
+
+<!-- 2 TWO KINDS OF PINS -->
+<section class="slide" data-notes="Quick reminder. IN pins only ever get HIGH or LOW. EN pins get a number 0–255 via analogWrite (PWM). Pin numbers match the car build: ENA 5, IN1 7, IN2 8, IN3 9, IN4 10, ENB 6.">
+  <h2><span class="tag">Quick reminder</span>Your car has two kinds of pins</h2>
+  <div class="pinbox">
+    <div class="card" style="border-color:var(--teal)">
+      <h3 class="t">IN pins = which way</h3>
+      <div class="what">They only know two words: <span class="g"><b>HIGH</b></span> and <span class="r"><b>LOW</b></span></div>
+      <span class="chip">IN1 → 7</span><span class="chip">IN2 → 8</span><span class="d" style="font-size:20px"> left wheel</span><br>
+      <span class="chip">IN3 → 9</span><span class="chip">IN4 → 10</span><span class="d" style="font-size:20px"> right wheel</span>
+      <pre class="code sm" style="margin-top:14px">digitalWrite(IN1, HIGH);</pre>
+    </div>
+    <div class="card" style="border-color:var(--yellow)">
+      <h3 class="y">EN pins = how fast</h3>
+      <div class="what">A number from <b class="y">0</b> (stopped) to <b class="y">255</b> (full blast)</div>
+      <span class="chip">ENA → ~5</span><span class="d" style="font-size:20px"> left wheel speed</span><br>
+      <span class="chip">ENB → ~6</span><span class="d" style="font-size:20px"> right wheel speed</span>
+      <pre class="code sm" style="margin-top:14px">analogWrite(ENA, 150);</pre>
+    </div>
+  </div>
+  <p class="big" style="margin-top:26px;font-size:26px">Turning is just this: <span class="t">different directions</span> or <span class="y">different speeds</span> on each wheel.</p>
+</section>
+
+<!-- 3 DIRECTION CHEAT SHEET -->
+<section class="slide" data-notes="Same pattern for IN3/IN4 on the right wheel. Coast = both LOW (wheel freewheels). Both HIGH = brake on the L298N — fine to mention, not needed today. If a wheel runs backward when it should go forward, swap its two motor wires at the screw terminal so everyone's code stays the same.">
+  <h2><span class="tag">Cheat sheet</span>HIGH + LOW = direction</h2>
+  <table class="truth">
+    <tr><th>IN1 (or IN3)</th><th>IN2 (or IN4)</th><th style="text-align:left">That wheel…</th></tr>
+    <tr class="r"><td class="mono g">HIGH</td><td class="mono r">LOW</td><td>rolls <b class="g">forward</b> ⬆️</td></tr>
+    <tr class="r"><td class="mono r">LOW</td><td class="mono g">HIGH</td><td>rolls <b class="r">backward</b> ⬇️</td></tr>
+    <tr class="r"><td class="mono r">LOW</td><td class="mono r">LOW</td><td><b>stops</b> (coasts) ✋</td></tr>
+  </table>
+  <p class="big d" style="font-size:22px;margin-top:10px">Wheel spinning the wrong way? Swap its two wires at the screw terminal. Don't change the code.</p>
+</section>
+
+<!-- 4 SPEED NUMBER -->
+<section class="slide" data-notes="The 0–255 number is PWM duty cycle: how much of each tiny pulse the motor gets power. Low numbers often just hum: not enough push to overcome friction. Stall number changes with batteries and floor. Remind them ~150 is a good cruising speed for long runs (255 is ~10 V to motors rated 3–6 V).">
+  <h2><span class="tag">ENA &amp; ENB</span>What does the speed number mean?</h2>
+  <div class="row">
+    <div class="col" style="flex:1.1">
+      <div class="card">
+        <div class="lbl"><span>analogWrite(ENA, <b id="spdTxt" class="y">150</b>);</span><span id="pctTxt">59% power</span></div>
+        <input type="range" id="spd" min="0" max="255" value="150">
+        <svg id="pwm" viewBox="0 0 600 110" style="width:100%;height:110px;margin-top:14px"></svg>
+        <div class="track"><div class="mini" id="mini">🚗</div></div>
+      </div>
+      <p class="big" style="font-size:24px">It's a <span class="y">dimmer switch</span> for your motor: the % of time the power is ON.</p>
+    </div>
+    <div class="col" style="flex:.9;align-items:center;justify-content:center;text-align:center">
+      <div class="bignum" id="spdBig">150</div>
+      <div class="zone" id="zone">Cruising 😎</div>
+      <div class="try" style="margin-top:24px;text-align:left">
+        <b>Find out</b>
+        <ul><li>What's your car's <b>stall number</b>, the lowest number that actually moves it?</li></ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 THREE TURNS -->
+<section class="slide" data-notes="Three families of turns. Spin = opposite directions, turns in place. Swing = one wheel stopped, pivots around that wheel. Curve = both forward, different speeds, makes an arc. Next three slides give the code for each.">
+  <h2><span class="tag">The big idea</span>Three ways to turn</h2>
+  <div class="turns">
+    <div class="card" style="border-color:var(--orange)">
+      <svg viewBox="0 0 200 170" width="220" height="185">
+        <circle cx="100" cy="90" r="58" fill="none" stroke="#ff7a3d" stroke-width="4" stroke-dasharray="8 7"/>
+        <path d="M150 55 l10 -16 l6 18z" fill="#ff7a3d"/>
+        <rect x="78" y="62" width="44" height="56" rx="8" fill="#3a3e48"/>
+        <rect x="66" y="74" width="10" height="30" rx="3" fill="#5be37d"/><rect x="124" y="74" width="10" height="30" rx="3" fill="#ff5a5f"/>
+        <text x="71" y="70" fill="#5be37d" font-size="18" text-anchor="middle">▲</text><text x="129" y="122" fill="#ff5a5f" font-size="18" text-anchor="middle">▼</text>
+      </svg>
+      <h3 class="o">Spin</h3>
+      <p>Wheels go <b>opposite</b> ways.<br>Turns in place, like a top.</p>
+    </div>
+    <div class="card" style="border-color:var(--teal)">
+      <svg viewBox="0 0 200 170" width="220" height="185">
+        <path d="M128 95 A 50 50 0 0 0 78 45" fill="none" stroke="#3ddbd9" stroke-width="4" stroke-dasharray="8 7"/>
+        <rect x="100" y="70" width="44" height="56" rx="8" fill="#3a3e48"/>
+        <rect x="88" y="82" width="10" height="30" rx="3" fill="#5be37d"/><rect x="146" y="82" width="10" height="30" rx="3" fill="#888"/>
+        <text x="93" y="78" fill="#5be37d" font-size="18" text-anchor="middle">▲</text><text x="151" y="128" fill="#aaa" font-size="16" text-anchor="middle">✋</text>
+      </svg>
+      <h3 class="t">Swing</h3>
+      <p>One wheel <b>stops</b>.<br>Car pivots around it.</p>
+    </div>
+    <div class="card" style="border-color:var(--yellow)">
+      <svg viewBox="0 0 200 170" width="220" height="185">
+        <path d="M70 160 Q 70 40 180 30" fill="none" stroke="#ffc93c" stroke-width="4" stroke-dasharray="8 7"/>
+        <rect x="48" y="100" width="44" height="56" rx="8" fill="#3a3e48"/>
+        <rect x="36" y="112" width="10" height="30" rx="3" fill="#5be37d"/><rect x="94" y="112" width="10" height="30" rx="3" fill="#5be37d" opacity=".5"/>
+        <text x="41" y="105" fill="#5be37d" font-size="13" text-anchor="middle">200</text><text x="99" y="105" fill="#5be37d" font-size="13" text-anchor="middle" opacity=".7">90</text>
+      </svg>
+      <h3 class="y">Curve</h3>
+      <p>Both forward, <b>different speeds</b>.<br>Smooth, swoopy arc.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 6 SPIN -->
+<section class="slide" data-notes="Spin right: left wheel forward, right wheel backward. delay() is how long the spin lasts, so it controls the angle. Expect something in the 250–600 ms range for 90° but every car is different.">
+  <h2><span class="tag o">Turn #1</span><span class="o">Spin</span> right</h2>
+  <div class="row">
+    <div class="col" style="flex:1.25">
+<pre class="code">digitalWrite(IN1, HIGH);  // left wheel
+digitalWrite(IN2, LOW);   //   → forward
+digitalWrite(IN3, LOW);   // right wheel
+digitalWrite(IN4, HIGH);  //   → backward
+analogWrite(ENA, 150);
+analogWrite(ENB, 150);
+delay(400);    // longer = spins farther</pre>
+    </div>
+    <div class="col">
+      <div class="try"><b>Try it</b><ul>
+        <li>Change <span class="y">400</span> until it's a perfect 90°.</li>
+        <li>Can you get a full 360°?</li>
+        <li>Flip it to spin <b>left</b>.</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 SWING -->
+<section class="slide" data-notes="Swing right: left wheel forward, right wheel stopped (LOW/LOW). Takes about twice as long as a spin to reach the same angle, and it sweeps out a wider path.">
+  <h2><span class="tag t">Turn #2</span><span class="t">Swing</span> right</h2>
+  <div class="row">
+    <div class="col" style="flex:1.25">
+<pre class="code">digitalWrite(IN1, HIGH);  // left wheel
+digitalWrite(IN2, LOW);   //   → forward
+digitalWrite(IN3, LOW);   // right wheel
+digitalWrite(IN4, LOW);   //   → STOP
+analogWrite(ENA, 150);
+analogWrite(ENB, 0);
+delay(700);</pre>
+    </div>
+    <div class="col">
+      <div class="try"><b>Try it</b><ul>
+        <li>Spin vs. swing: which needs a longer delay for 90°?</li>
+        <li>Make it swing <b>backward</b>.</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 CURVE -->
+<section class="slide" data-notes="This is where ENA/ENB really shine. Bigger gap between the numbers = tighter curve. Equal numbers = (almost) straight — and 'almost' is the point: motors aren't perfect twins, so a car told to go straight often drifts. Trimming one number fixes it.">
+  <h2><span class="tag y">Turn #3</span><span class="y">Curve</span> right</h2>
+  <div class="row">
+    <div class="col" style="flex:1.25">
+<pre class="code">digitalWrite(IN1, HIGH);  // both
+digitalWrite(IN2, LOW);   // wheels
+digitalWrite(IN3, HIGH);  // go
+digitalWrite(IN4, LOW);   // forward
+analogWrite(ENA, 200);    // left: fast
+analogWrite(ENB, 90);     // right: slow
+delay(1500);</pre>
+    </div>
+    <div class="col">
+      <div class="try"><b>Try it</b><ul>
+        <li>Make the gap bigger. Smaller. What changes?</li>
+        <li>Set them equal. Does it <i>really</i> drive straight?</li>
+        <li>Nudge one number until it does.</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 SIMULATOR -->
+<section class="slide" data-notes="Optional on-screen sandbox. Students can build a sequence of steps, hit Run, and see the path + the code it generates. The sim is idealized (no friction, stall at 70) — real cars need their own numbers. Good for planning a square or figure 8 before trying on the floor.">
+  <h2 style="font-size:40px;margin-bottom:12px"><span class="tag">Sandbox</span>Test drive on screen, then on the floor</h2>
+  <div class="simgrid">
+    <canvas id="simCanvas"></canvas>
+    <div class="col" style="gap:10px">
+      <div class="wheelctl">
+        <div class="card">
+          <h4>Left wheel · IN1/IN2</h4>
+          <div class="seg" data-w="l"><button data-v="1" class="on">Fwd</button><button data-v="0">Stop</button><button data-v="-1">Back</button></div>
+          <div class="lbl"><span>ENA</span><b id="enaV" class="y">150</b></div>
+          <input type="range" id="ena" min="0" max="255" value="150">
+        </div>
+        <div class="card">
+          <h4>Right wheel · IN3/IN4</h4>
+          <div class="seg" data-w="r"><button data-v="1" class="on">Fwd</button><button data-v="0">Stop</button><button data-v="-1">Back</button></div>
+          <div class="lbl"><span>ENB</span><b id="enbV" class="y">150</b></div>
+          <input type="range" id="enb" min="0" max="255" value="150">
+        </div>
+      </div>
+      <div class="card" style="padding:10px 14px">
+        <div class="lbl"><span>delay(ms)</span><b id="msV" class="y">1000</b></div>
+        <input type="range" id="ms" min="100" max="3000" step="50" value="1000">
+      </div>
+      <div class="btns">
+        <button class="btn pre" data-p="fwd">Forward</button><button class="btn pre" data-p="spinL">Spin L</button><button class="btn pre" data-p="spinR">Spin R</button>
+        <button class="btn pre" data-p="swingL">Swing L</button><button class="btn pre" data-p="swingR">Swing R</button><button class="btn pre" data-p="curve">Curve</button>
+      </div>
+      <div class="btns">
+        <button class="btn" id="addStep">➕ Add step</button>
+        <button class="btn go" id="run">▶ Run</button>
+        <button class="btn" id="undo">↶ Undo</button>
+        <button class="btn" id="clear">✕ Clear</button>
+        <span id="steps" style="align-self:center">0 steps</span>
+      </div>
+      <pre class="code" id="simCode"></pre>
+    </div>
+  </div>
+</section>
+
+<!-- 10 PRO MOVES -->
+<section class="slide" data-notes="Three pro tips. (1) delay(3000) at the start of setup so you can set the car down after pressing reset. (2) Put a one-time routine in setup() and leave loop() empty, so it doesn't repeat forever down the hallway. (3) Wrap moves in functions — they did C++ functions with the servo robot. Students who did the drive(left, right) bonus can use that instead.">
+  <h2><span class="tag">Pro moves</span>Make your code easy to tweak</h2>
+  <div class="row">
+    <div class="col" style="flex:1">
+<pre class="code sm"><span class="cm">// write a move ONCE…</span>
+void spinRight(int spd, int ms) {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+  analogWrite(ENA, spd);
+  analogWrite(ENB, spd);
+  delay(ms);
+}</pre>
+    </div>
+    <div class="col" style="flex:1">
+<pre class="code sm"><span class="cm">// …then use it a bunch</span>
+void setup() {
+  <span class="cm">// (pinModes here)</span>
+  delay(3000);      // set me down!
+  forward(150, 1000);
+  spinRight(150, 400);
+  forward(150, 1000);
+  stopCar();        // or: hallway forever
+}
+void loop() { }     // empty = run once</pre>
+      <p style="font-size:20px" class="d">Already wrote <span class="t" style="font-family:var(--mono)">drive(left, right)</span> on the bonus slide? Use it!</p>
+    </div>
+  </div>
+</section>
+
+<!-- 11 EXPERIMENT -->
+<section class="slide" data-notes="This is the transition to floor time. Read one or two bubbles aloud and send them off. Hallway rules are on the next slide — show it before anyone heads out.">
+  <h2 style="font-size:72px"><span class="tag">Now</span>Go <span class="y">play.</span> Change a number. See what happens.</h2>
+  <div class="bubbles" style="margin-top:10px">
+    <div class="bub">What's your perfect 90°?</div>
+    <div class="bub">Fastest spin without flipping?</div>
+    <div class="bub">Smallest circle possible?</div>
+    <div class="bub">Biggest circle that fits in the room?</div>
+    <div class="bub">Does carpet change your numbers?</div>
+    <div class="bub">ENA 255, ENB 60. What happens? 🌀</div>
+    <div class="bub">Can it drive in reverse… gracefully?</div>
+    <div class="bub">What if you change speed <i>mid-turn</i>?</div>
+  </div>
+  <p class="big d" style="margin-top:auto;font-size:24px">Tip: write your magic numbers on a piece of tape stuck to your car. 🏷️</p>
+</section>
+
+<!-- 12 HALLWAY RULES -->
+<section class="slide" data-notes="Adjust as needed for your hallway. Other classes are in session.">
+  <h2><span class="tag">Before you leave the room</span>Hallway rules</h2>
+  <ul class="rules">
+    <li><span class="n">🤫</span><span>Other classes are working. <b class="y">Quiet voices</b>, quiet celebrations.</span></li>
+    <li><span class="n">👀</span><span>Stay with your car. If it gets away, <b class="y">you</b> go get it.</span></li>
+    <li><span class="n">🚶</span><span>People have the right of way. Always. <b class="y">Pick the car up</b> if someone's coming.</span></li>
+  </ul>
+</section>
+
+<!-- 13 CHALLENGES -->
+<section class="slide" data-notes="Clickable — tap a card to mark it done (with confetti). Encourage students to invent their own. Tape Xs on the floor make 'spot to spot' and 'parallel park' more fun.">
+  <h2 style="margin-bottom:16px"><span class="tag">Level up</span>Give yourself a challenge <span class="d" style="font-size:22px;font-weight:600">(click when you nail it)</span></h2>
+  <div class="chal">
+    <div class="ch"><div class="ico">⬜</div><h4>The Square</h4><p>Four sides, four turns, back where you started.</p><div class="stars">★★</div></div>
+    <div class="ch"><div class="ico">♾️</div><h4>Figure 8</h4><p>Two loops, one smooth crossover.</p><div class="stars">★★★</div></div>
+    <div class="ch"><div class="ico">❌</div><h4>Spot to Spot</h4><p>Start on one tape X. Stop dead on another.</p><div class="stars">★★</div></div>
+    <div class="ch"><div class="ico">🧱</div><h4>Dodge It</h4><p>Get from A to B with an obstacle right in the way.</p><div class="stars">★★</div></div>
+    <div class="ch"><div class="ico">🏎️</div><h4>Straight Shot</h4><p>Go straight down the hallway. No drifting!</p><div class="stars">★★</div></div>
+    <div class="ch"><div class="ico">🌀</div><h4>Spiral</h4><p>A curve that keeps getting tighter (or wider).</p><div class="stars">★★★</div></div>
+    <div class="ch"><div class="ico">🅿️</div><h4>Parallel Park</h4><p>Slide into a "space" between two objects.</p><div class="stars">★★★</div></div>
+    <div class="ch"><div class="ico">🔤</div><h4>Your Initial</h4><p>Drive the shape of a letter. L? Z? S?!</p><div class="stars">★★★</div></div>
+    <div class="ch"><div class="ico">💃</div><h4>Robot Dance</h4><p>Spins, wiggles, a dramatic finish.</p><div class="stars">★</div></div>
+    <div class="ch"><div class="ico">💡</div><h4>Invent One</h4><p>Make up a challenge, then dare a friend.</p><div class="stars">★?</div></div>
+  </div>
+  <canvas id="confetti"></canvas>
+</section>
+
+<!-- 14 MENU -->
+<section class="slide" data-notes="Click option D for a little surprise. Happy Thanksgiving!">
+  <h2 style="font-size:42px;margin-bottom:6px"><span class="tag">Done with ALL of this? And your CAD assignment is turned in?</span>Wow. Choose your next adventure:</h2>
+  <div class="menu" style="margin-top:12px">
+    <div class="opt"><div class="letter">A</div><div><h4>CAD attachments for your robot</h4><p>Make the body neater and cooler. Wire covers, bumpers, a spoiler, a tiny driver seat… go wild.</p></div></div>
+    <div class="opt"><div class="letter">B</div><div><h4>CAD something cool for me to print</h4><p>Bring me a design you're proud of and it goes in the print queue.</p></div></div>
+    <div class="opt"><div class="letter">C</div><div><h4>Homework for other classes</h4><p>Your other teachers will be amazed. Your future self will be grateful.</p></div></div>
+    <div class="opt nope" id="optD"><div class="letter">D</div><div><h4><s>Social media, YouTube, video games, fantasy football, or "whatever"</s></h4><p id="dText">🔒 Not on the menu. Your fantasy team will survive one class period without you. I believe in them.</p></div></div>
+  </div>
+  <p class="big" style="font-size:26px;margin-top:14px;text-align:center">Happy Thanksgiving, engineers. 🦃 You built a robot car. That's awesome.</p>
+</section>
+
+<div id="notes"></div>
+<div id="nav">
+  <button id="prev">◀</button>
+  <div id="dots"></div>
+  <span><span id="count"></span> · N = notes &nbsp;<button id="next">▶</button></span>
+</div>
+</div></div>
+
+<script>
+// ---------- stage scaling ----------
+const stage=document.getElementById('stage');
+function fit(){const s=Math.min(innerWidth/1280,innerHeight/720)*0.98;stage.style.transform=`scale(${s})`;}
+addEventListener('resize',fit);fit();
+
+// ---------- syntax highlight ----------
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function hlLine(line){
+  // keep existing <span class="cm"> markup untouched
+  if(line.includes('<span class="cm">')) {
+    const i=line.indexOf('<span class="cm">');
+    return hlLine(line.slice(0,i))+line.slice(i);
+  }
+  let code=line,comment='';
+  const c=line.indexOf('//');
+  if(c>=0){code=line.slice(0,c);comment=line.slice(c);}
+  code=code.replace(/\b(HIGH)\b|\b(LOW)\b|\b(digitalWrite|analogWrite|delay|pinMode)\b|\b(void|int|const)\b|\b(\d+)\b/g,
+    (m,h,l,f,k,n)=>h?`<span class="hi">${m}</span>`:l?`<span class="lo">${m}</span>`:f?`<span class="fn">${m}</span>`:k?`<span class="kw">${m}</span>`:`<span class="num">${m}</span>`);
+  return code+(comment?`<span class="cm">${comment}</span>`:'');
+}
+function highlight(el){el.innerHTML=el.innerHTML.split('\n').map(hlLine).join('\n');}
+document.querySelectorAll('pre.code').forEach(el=>{if(el.id!=='simCode')highlight(el);});
+
+// ---------- slides ----------
+const slides=[...document.querySelectorAll('.slide')];
+const dots=document.getElementById('dots'),notes=document.getElementById('notes');
+let cur=0;
+slides.forEach((s,i)=>{const d=document.createElement('span');d.onclick=()=>go(i);dots.appendChild(d);});
+function go(i){
+  cur=Math.max(0,Math.min(slides.length-1,i));
+  slides.forEach((s,j)=>s.classList.toggle('active',j===cur));
+  [...dots.children].forEach((d,j)=>d.classList.toggle('on',j===cur));
+  document.getElementById('count').textContent=`${cur+1} / ${slides.length}`;
+  notes.innerHTML='<b>Teacher notes:</b> '+(slides[cur].dataset.notes||'');
+  if(slides[cur].querySelector('#simCanvas')) simDrawIdle();
+}
+document.getElementById('prev').onclick=()=>go(cur-1);
+document.getElementById('next').onclick=()=>go(cur+1);
+addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT')return;
+  if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();go(cur+1);}
+  if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();go(cur-1);}
+  if(e.key==='n'||e.key==='N')notes.style.display=notes.style.display==='block'?'none':'block';
+});
+
+// ---------- speed slider slide ----------
+const spd=document.getElementById('spd'),mini=document.getElementById('mini');
+let miniX=0,lastT=performance.now();
+function zoneFor(v){
+  if(v===0)return['Stopped 🛑','var(--dim)'];
+  if(v<70)return['Hum zone: probably stalls 😴','var(--red)'];
+  if(v<=160)return['Cruising 😎','var(--teal)'];
+  if(v<210)return['Zippy ⚡','var(--yellow)'];
+  return['Full send 🔥 (motors get hot)','var(--orange)'];
+}
+function drawPWM(v){
+  const duty=v/255,svg=document.getElementById('pwm');let d='M0 95';
+  for(let i=0;i<6;i++){const x=i*100,on=duty*100;
+    if(on>0)d+=` L${x} 15 L${x+on} 15`;d+=` L${x+on} 95 L${x+100} 95`;}
+  svg.innerHTML=`<text x="0" y="12" fill="#a9a49b" font-size="12" font-family="monospace">ON</text>
+  <text x="0" y="108" fill="#a9a49b" font-size="12" font-family="monospace">OFF</text>
+  <path d="${d}" fill="none" stroke="#ffc93c" stroke-width="4" stroke-linejoin="round"/>`;
+}
+function updSpd(){
+  const v=+spd.value;
+  document.getElementById('spdTxt').textContent=v;document.getElementById('spdBig').textContent=v;
+  document.getElementById('pctTxt').textContent=Math.round(v/255*100)+'% power';
+  const [z,c]=zoneFor(v);const zEl=document.getElementById('zone');zEl.textContent=z;zEl.style.color=c;
+  drawPWM(v);
+}
+spd.oninput=updSpd;updSpd();
+function miniLoop(t){
+  const dt=(t-lastT)/1000;lastT=t;const v=+spd.value;
+  const vel=v<70?0:v*2.4; // px/s
+  miniX+=vel*dt;const w=mini.parentElement.clientWidth||540;
+  if(miniX>w)miniX=-50;
+  mini.style.left=miniX+'px';
+  mini.style.transform=(v>0&&v<70)?`translateX(${Math.sin(t/25)*1.5}px) scaleX(-1)`:"scaleX(-1)";
+  requestAnimationFrame(miniLoop);
+}
+requestAnimationFrame(miniLoop);
+
+// ---------- simulator ----------
+const cv=document.getElementById('simCanvas'),ctx=cv.getContext('2d');
+const DPR=2;cv.width=560*DPR;cv.height=430*DPR;ctx.scale(DPR,DPR);
+const W=560,H=430;
+const st={l:1,r:1};let steps=[];let anim=null;
+const segs=document.querySelectorAll('.seg');
+segs.forEach(sg=>sg.querySelectorAll('button').forEach(b=>b.onclick=()=>{st[sg.dataset.w]=+b.dataset.v;syncSeg();renderCode();}));
+function syncSeg(){segs.forEach(sg=>sg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===st[sg.dataset.w])));}
+const ena=document.getElementById('ena'),enb=document.getElementById('enb'),ms=document.getElementById('ms');
+function syncVals(){document.getElementById('enaV').textContent=ena.value;document.getElementById('enbV').textContent=enb.value;document.getElementById('msV').textContent=ms.value;renderCode();}
+[ena,enb,ms].forEach(i=>i.oninput=syncVals);
+const presets={fwd:[1,1,150,150,1000],spinL:[-1,1,150,150,300],spinR:[1,-1,150,150,300],swingL:[0,1,0,150,600],swingR:[1,0,150,0,600],curve:[1,1,200,90,1500]};
+document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{const p=presets[b.dataset.p];st.l=p[0];st.r=p[1];ena.value=p[2];enb.value=p[3];ms.value=p[4];syncSeg();syncVals();});
+function curStep(){return{l:st.l,r:st.r,ena:+ena.value,enb:+enb.value,ms:+ms.value};}
+const pins={1:['HIGH','LOW'],0:['LOW','LOW'],'-1':['LOW','HIGH']};
+function stepCode(s,i){
+  const a=pins[s.l],b=pins[s.r];
+  const name=s.l===1&&s.r===1?(s.ena===s.enb?'forward':(s.ena>s.enb?'curve right':'curve left'))
+    :s.l===-1&&s.r===-1?'backward':s.l===1&&s.r===-1?'spin right':s.l===-1&&s.r===1?'spin left'
+    :s.l===0&&s.r===0?'stop':s.r===0?'swing right':s.l===0?'swing left':'wiggle';
+  return `// step ${i+1}: ${name}
+digitalWrite(IN1, ${a[0]}); digitalWrite(IN2, ${a[1]});
+digitalWrite(IN3, ${b[0]}); digitalWrite(IN4, ${b[1]});
+analogWrite(ENA, ${s.ena}); analogWrite(ENB, ${s.enb});
+delay(${s.ms});`;
+}
+const simCode=document.getElementById('simCode');
+function renderCode(){
+  const list=steps.length?steps:[curStep()];
+  let txt=list.map(stepCode).join('\n\n');
+  if(!steps.length)txt='// preview (click ➕ Add step to build a program)\n'+txt;
+  else txt+='\n\nanalogWrite(ENA, 0); analogWrite(ENB, 0);  // stop';
+  simCode.innerHTML=esc(txt).split('\n').map(hlLine).join('\n');
+  document.getElementById('steps').textContent=steps.length+(steps.length===1?' step':' steps');
+}
+document.getElementById('addStep').onclick=()=>{steps.push(curStep());renderCode();runSim(steps);};
+document.getElementById('undo').onclick=()=>{steps.pop();renderCode();simDrawIdle();};
+document.getElementById('clear').onclick=()=>{steps=[];renderCode();simDrawIdle();};
+document.getElementById('run').onclick=()=>runSim(steps.length?steps:[curStep()]);
+
+const TRACK=13, VMAX=60, STALL=70; // cm, cm/s, pwm
+const COLORS=['#ffc93c','#3ddbd9','#ff7a3d','#b48cff','#5be37d','#ff5a5f'];
+function wheelV(dir,p){return p<STALL?0:dir*VMAX*p/255;}
+function simulate(list){
+  let x=0,y=0,th=0;const pts=[[x,y,th,0,1,1]];
+  list.forEach((s,i)=>{
+    const vl=wheelV(s.l,s.ena),vr=wheelV(s.r,s.enb),n=Math.round(s.ms/10);
+    for(let k=0;k<n;k++){
+      const v=(vl+vr)/2,w=(vl-vr)/TRACK,dt=0.01;
+      th+=w*dt;x+=v*Math.sin(th)*dt;y-=v*Math.cos(th)*dt;
+      pts.push([x,y,th,i,vl===0?0:Math.sign(vl),vr===0?0:Math.sign(vr)]);
+    }
+  });
+  return pts;
+}
+function view(pts){
+  let x0=-25,x1=25,y0=-25,y1=25;
+  pts.forEach(p=>{x0=Math.min(x0,p[0]-20);x1=Math.max(x1,p[0]+20);y0=Math.min(y0,p[1]-20);y1=Math.max(y1,p[1]+20);});
+  const sc=Math.min((W-30)/(x1-x0),(H-30)/(y1-y0),3.2);
+  const cx=(x0+x1)/2,cy=(y0+y1)/2;
+  return {sc,tx:p=>W/2+(p[0]-cx)*sc,ty:p=>H/2+(p[1]-cy)*sc,cx,cy};
+}
+function drawGrid(v){
+  ctx.fillStyle='#16181c';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='#23262d';ctx.lineWidth=1;
+  const g=20*v.sc; // 20 cm squares
+  const ox=(W/2-v.cx*v.sc)%g, oy=(H/2-v.cy*v.sc)%g;
+  for(let x=ox;x<W;x+=g){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=oy;y<H;y+=g){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.fillStyle='#6b675f';ctx.font='12px monospace';ctx.fillText('each square = 20 cm · sim ≠ your floor!',10,H-10);
+}
+function drawCar(x,y,th,sc,dl,dr){
+  ctx.save();ctx.translate(x,y);ctx.rotate(th);ctx.scale(sc,sc);
+  ctx.fillStyle='#3a3e48';ctx.strokeStyle='#f5efe4';ctx.lineWidth=0.6;
+  ctx.beginPath();ctx.roundRect(-6.5,-9,13,18,2.5);ctx.fill();ctx.stroke();
+  const col=d=>d>0?'#5be37d':d<0?'#ff5a5f':'#888';
+  ctx.fillStyle=col(dl);ctx.fillRect(-9,-4,2.4,8);
+  ctx.fillStyle=col(dr);ctx.fillRect(6.6,-4,2.4,8);
+  ctx.fillStyle='#ffc93c';ctx.beginPath();ctx.moveTo(0,-8);ctx.lineTo(-3,-4);ctx.lineTo(3,-4);ctx.fill();
+  ctx.restore();
+}
+function drawFrame(pts,v,upto){
+  drawGrid(v);
+  // start marker
+  ctx.strokeStyle='#ffc93c';ctx.lineWidth=2;ctx.beginPath();
+  const sx=v.tx(pts[0]),sy=v.ty(pts[0]);ctx.moveTo(sx-6,sy-6);ctx.lineTo(sx+6,sy+6);ctx.moveTo(sx+6,sy-6);ctx.lineTo(sx-6,sy+6);ctx.stroke();
+  ctx.lineWidth=3;ctx.lineCap='round';
+  for(let i=1;i<=upto;i++){
+    ctx.strokeStyle=COLORS[pts[i][3]%COLORS.length];
+    ctx.beginPath();ctx.moveTo(v.tx(pts[i-1]),v.ty(pts[i-1]));ctx.lineTo(v.tx(pts[i]),v.ty(pts[i]));ctx.stroke();
+  }
+  const p=pts[upto];drawCar(v.tx(p),v.ty(p),p[2],v.sc,p[4],p[5]);
+}
+function runSim(list){
+  if(anim)cancelAnimationFrame(anim);
+  const pts=simulate(list),v=view(pts),t0=performance.now();
+  const tick=t=>{const i=Math.min(pts.length-1,Math.floor((t-t0)/10));drawFrame(pts,v,i);if(i<pts.length-1)anim=requestAnimationFrame(tick);};
+  anim=requestAnimationFrame(tick);
+}
+function simDrawIdle(){
+  if(anim)cancelAnimationFrame(anim);
+  if(steps.length){const pts=simulate(steps);drawFrame(pts,view(pts),pts.length-1);}
+  else{const pts=[[0,0,0,0,0,0]];drawFrame(pts,view(pts),0);}
+}
+renderCode();simDrawIdle();
+
+// ---------- challenges + confetti ----------
+const cc=document.getElementById('confetti'),cx2=cc.getContext('2d');cc.width=1280;cc.height=720;
+let bits=[],cAnim=null;
+function boom(x,y){
+  for(let i=0;i<90;i++)bits.push({x,y,vx:(Math.random()-.5)*14,vy:-Math.random()*14-4,r:Math.random()*6+4,c:COLORS[i%6],a:Math.random()*6,life:110});
+  if(!cAnim)cAnim=requestAnimationFrame(confLoop);
+}
+function confLoop(){
+  cx2.clearRect(0,0,1280,720);
+  bits.forEach(b=>{b.vy+=0.35;b.x+=b.vx;b.y+=b.vy;b.a+=0.2;b.life--;
+    cx2.save();cx2.translate(b.x,b.y);cx2.rotate(b.a);cx2.fillStyle=b.c;cx2.fillRect(-b.r/2,-b.r/4,b.r,b.r/2);cx2.restore();});
+  bits=bits.filter(b=>b.life>0&&b.y<760);
+  cAnim=bits.length?requestAnimationFrame(confLoop):null;
+}
+document.querySelectorAll('.ch').forEach(c=>c.onclick=()=>{
+  c.classList.toggle('done');
+  if(c.classList.contains('done')){
+    const sr=stage.getBoundingClientRect(),r=c.getBoundingClientRect(),s=sr.width/1280;
+    boom((r.left+r.width/2-sr.left)/s,(r.top+r.height/2-sr.top)/s);
+  }
+});
+
+// ---------- option D ----------
+const quips=["🔒 Not on the menu. Your fantasy team will survive one class period without you. I believe in them.",
+  "Nice try. 😏 Options A, B, and C are right there and they're great.",
+  "Still no. Your lineup is fine. Your other homework, however…",
+  "🧐 I can see your screen from here. (I can always see your screen from here.)",
+  "OK, you've clicked this a lot. Imagine what you could CAD with this energy."];
+let qi=0;const optD=document.getElementById('optD');
+optD.onclick=()=>{qi=(qi+1)%quips.length;document.getElementById('dText').textContent=quips[qi];
+  optD.classList.remove('shake');void optD.offsetWidth;optD.classList.add('shake');};
+
+go(0);
+</script>
+</body>
+</html>
